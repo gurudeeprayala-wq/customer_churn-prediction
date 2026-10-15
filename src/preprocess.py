@@ -3,15 +3,23 @@ import json
 import joblib
 import pandas as pd
 import numpy as np
+import yaml
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.impute import KNNImputer
 
 def run_preprocessing():
     print("Starting Preprocessing Pipeline...")
+    with open('config.yaml', encoding='utf-8') as config_file:
+        config = yaml.safe_load(config_file)
+    data_config = config['data']
+    split_config = config['split']
+    processed_dir = data_config['processed_dir']
+    os.makedirs(processed_dir, exist_ok=True)
+    os.makedirs('models', exist_ok=True)
     
     # 1. Load the raw data
-    data_path = 'data/raw/churn.csv'
+    data_path = data_config['raw_path']
     df = pd.read_csv(data_path)
     
     # 2. Data Cleaning
@@ -28,18 +36,24 @@ def run_preprocessing():
     # imputer = KNNImputer(n_neighbors=5)
     # df[knn_cols] = imputer.fit_transform(df[knn_cols])
 
-    if 'customerID' in df.columns:
-        df = df.drop('customerID', axis=1)
+    id_column = data_config['id_column']
+    target_column = data_config['target_column']
+    if id_column in df.columns:
+        df = df.drop(id_column, axis=1)
         
     # Unconditional string to binary integer conversion
-    df['Churn'] = df['Churn'].apply(lambda x: 1 if str(x).strip().lower() == 'yes' else 0).astype(int)
+    df[target_column] = df[target_column].apply(lambda x: 1 if str(x).strip().lower() == 'yes' else 0).astype(int)
         
-    X = df.drop('Churn', axis=1)
-    y = df['Churn']
+    X = df.drop(target_column, axis=1)
+    y = df[target_column]
     
     # 3. Train-Test Split
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
+        X,
+        y,
+        test_size=float(split_config['test_size']),
+        random_state=int(split_config['random_state']),
+        stratify=y,
     )
     
     # 4. Separate Column Types
@@ -60,13 +74,17 @@ def run_preprocessing():
     X_test_final = np.hstack((x_test_scaled, x_test_encoded))
     
     # 6. Save Artifacts with explicit integer type casting
-    np.save('data/processed/X_train_final.npy', X_train_final)
-    np.save('data/processed/X_test_final.npy', X_test_final)
-    np.save('data/processed/y_train.npy', y_train.to_numpy(dtype=np.int64))
-    np.save('data/processed/y_test.npy', y_test.to_numpy(dtype=np.int64))
+    np.save(os.path.join(processed_dir, 'X_train_final.npy'), X_train_final)
+    np.save(os.path.join(processed_dir, 'X_test_final.npy'), X_test_final)
+    np.save(os.path.join(processed_dir, 'y_train.npy'), y_train.to_numpy(dtype=np.int64))
+    np.save(os.path.join(processed_dir, 'y_test.npy'), y_test.to_numpy(dtype=np.int64))
     
-    joblib.dump(scaler, 'models/scaler.pkl')
-    joblib.dump(ohe, 'models/ohe.pkl')
+    joblib.dump(scaler, config['paths']['scaler'])
+    joblib.dump(ohe, config['paths']['encoder'])
+    joblib.dump(
+        {'scaler': scaler, 'encoder': ohe},
+        config['paths']['preprocessor'],
+    )
     
     # Save Metadata
     metadata = {
@@ -76,7 +94,7 @@ def run_preprocessing():
         "numerical_features": list(num_cols),
         "categorical_features": list(cat_cols)
     }
-    with open('data/processed/dataset_metadata.json', 'w') as f:
+    with open(os.path.join(processed_dir, 'dataset_metadata.json'), 'w') as f:
         json.dump(metadata, f, indent=4)
         
     print("Preprocessing completed successfully!")

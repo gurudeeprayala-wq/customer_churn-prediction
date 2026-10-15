@@ -1,0 +1,44 @@
+data:
+  raw_path: data/raw/churn.csv
+  inference_path: data/raw/new_churn.csv
+  processed_dir: data/processed
+  target_column: Churn
+  id_column: customerID
+
+split:
+  test_size: 0.2
+  random_state: 42
+
+model:
+  n_estimators: 150
+  max_depth: 12
+  random_state: 42
+  class_weight: balanced
+
+paths:
+  preprocessor: models/preprocessor.pkl
+  model: models/churn_model.pkl
+  scaler: models/scaler.pkl
+  encoder: models/ohe.pkl
+  scaler: models/scaler.pkl
+  encoder: models/ohe.pkl
+  evaluation_report: artifacts/evaluation_report.json
+  quality_gate_report: reports/quality_gate_report.json
+  failure_report: reports/failure_report.json
+  inference_output: outputs/inference_predictions.csv
+  registry_report: outputs/registry_report.json
+
+mlflow:
+  tracking_uri: ""
+  experiment_name: churn_prediction_model_training_lab7
+
+registry:
+  model_name: Telco_Churn_Production_Model
+  decision_metric: recall
+
+quality_gate:
+  metric: roc_auc
+  minimum_value: 0.70
+
+lab9:
+  repetitions: 3
